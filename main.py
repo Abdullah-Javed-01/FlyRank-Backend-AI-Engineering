@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
@@ -54,6 +54,46 @@ def create_task(task: dict):
     }
     tasks.append(new_task)
     return new_task
+
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, data: dict):
+    for task in tasks:
+        if task["id"] == task_id:
+            if "title" not in data and "done" not in data:
+                return JSONResponse(
+                    content={"error": "Request must include title or done"},
+                    status_code=400
+                )
+            if "title" in data:
+                if not isinstance(data["title"], str) or not data["title"].strip():
+                    return JSONResponse(
+                        content={"error": "Title must be a non-empty string"},
+                        status_code=400
+                    )
+                task["title"] = data["title"].strip()
+            if "done" in data:
+                if not isinstance(data["done"], bool):
+                    return JSONResponse(
+                        content={"error": "Done must be a boolean value"},
+                        status_code=400
+                    )
+                task["done"] = data["done"]
+            return task
+    return JSONResponse(
+        content={"error": "Task " + str(task_id) + " not found"},
+        status_code=404
+    )
+    
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int):
+    for task in tasks:
+        if task["id"] == task_id:
+            tasks.remove(task)
+            return Response(status_code=204)
+    return JSONResponse(
+        content={"error": "Task " + str(task_id) + " not found"},
+        status_code=404
+    )
 
 @app.get("/")
 def get_values():
