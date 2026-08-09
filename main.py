@@ -3,5 +3,13 @@ from fastapi import FastAPI
 app = FastAPI()
 
 @app.get("/")
-async def read_root():
-    return {"Message":"Welcome to first FastAPI application!"}
+def get_values():
+    return {
+            "name": "Task API",
+            "version": "1.0",
+            "endpoints": ["/tasks"]
+            }
+
+@app.get("/health")
+def get_health():
+    return {"status": "ok"}
