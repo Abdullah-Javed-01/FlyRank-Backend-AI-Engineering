@@ -62,8 +62,8 @@ flyrank-crud-api/
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
-cd flyrank-crud-api
+git clone https://github.com/Abdullah-Javed-01/FlyRank-Backend-AI-Engineering.git
+cd FlyRank-Backend-AI-Engineering/Week-02/CRUD-API
 ```
 
 ### 2. Create a virtual environment
