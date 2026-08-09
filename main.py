@@ -21,11 +21,11 @@ tasks = [
     }
 ]
 
-@app.get("/tasks")
+@app.get("/tasks", description="Return all tasks stored in memory.")
 def get_tasks():
     return tasks
 
-@app.get("/tasks/{task_id}")
+@app.get("/tasks/{task_id}", description="Return one task by its ID.")
 def get_task(task_id: int):
     for task in tasks:
         if task["id"] == task_id:
@@ -35,7 +35,7 @@ def get_task(task_id: int):
         status_code=404
 )
 
-@app.post("/tasks", status_code=201)
+@app.post("/tasks", description="Create a new task with done set to false.", status_code=201)
 def create_task(task: dict):
     if (
             "title" not in task
@@ -55,7 +55,7 @@ def create_task(task: dict):
     tasks.append(new_task)
     return new_task
 
-@app.put("/tasks/{task_id}")
+@app.put("/tasks/{task_id}", description="Update the title and/or done status of a task.")
 def update_task(task_id: int, data: dict):
     for task in tasks:
         if task["id"] == task_id:
@@ -84,7 +84,7 @@ def update_task(task_id: int, data: dict):
         status_code=404
     )
     
-@app.delete("/tasks/{task_id}")
+@app.delete("/tasks/{task_id}", description="Delete a task by its ID.")
 def delete_task(task_id: int):
     for task in tasks:
         if task["id"] == task_id:
@@ -95,7 +95,7 @@ def delete_task(task_id: int):
         status_code=404
     )
 
-@app.get("/")
+@app.get("/", description="Return basic information about the Task API.")
 def get_values():
     return {
             "name": "Task API",
@@ -103,6 +103,6 @@ def get_values():
             "endpoints": ["/tasks"]
             }
 
-@app.get("/health")
+@app.get("/health", description="Check whether the API is running.")
 def get_health():
     return {"status": "ok"}
