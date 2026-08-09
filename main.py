@@ -84,7 +84,7 @@ def update_task(task_id: int, data: dict):
         status_code=404
     )
     
-@app.delete("/tasks/{task_id}", description="Delete a task by its ID.")
+@app.delete("/tasks/{task_id}", status_code=204, description="Delete a task by its ID.")
 def delete_task(task_id: int):
     for task in tasks:
         if task["id"] == task_id:
