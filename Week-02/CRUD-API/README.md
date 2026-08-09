@@ -44,7 +44,6 @@ flyrank-crud-api/
 ├── main.py
 ├── requirements.txt
 ├── README.md
-├── .gitignore
 │
 └── screenshots/
     ├── swagger-overview.png
