@@ -32,6 +32,7 @@ Topics covered through the internship include:
 FlyRank-Backend-AI-Engineering/
 │
 ├── README.md
+├── .gitignore
 │
 ├── Week-02/
 │   └── CRUD-API/
