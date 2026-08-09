@@ -35,6 +35,26 @@ def get_task(task_id: int):
         status_code=404
 )
 
+@app.post("/tasks", status_code=201)
+def create_task(task: dict):
+    if (
+            "title" not in task
+            or not isinstance(task["title"], str)
+            or not task["title"].strip()
+        ):
+        return JSONResponse(
+            content={"error": "Title is required and must be a non-empty string"},
+            status_code=400
+        )
+    next_id = max(task["id"] for task in tasks) + 1 if tasks else 1
+    new_task = {
+        "id": next_id,
+        "title": task["title"].strip(),
+        "done": False
+    }
+    tasks.append(new_task)
+    return new_task
+
 @app.get("/")
 def get_values():
     return {
