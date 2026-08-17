@@ -45,6 +45,7 @@ The API endpoints remain the same, but task data now survives application restar
 - Correct HTTP status codes
 - Swagger UI documentation
 - Database inspection using DB Browser for SQLite
+- AI rematch comparison between a hand-built and AI-generated implementation
 
 ---
 
@@ -104,8 +105,16 @@ CRUD-Database/
 ├── main.py
 ├── requirements.txt
 ├── README.md
-└── screenshots/
-    └── database-browser.png
+├── screenshots/
+│   └── database-browser.png
+├── ai-version/
+│   ├── main.py
+│   ├── requirements.txt
+│   └── prompt-v1.txt
+└── ai-version-v2/
+    ├── main.py
+    ├── requirements.txt
+    └── prompt-v2.txt
 ```
 
 Generated SQLite files such as `tasks.db`, `tasks.db-journal`, `tasks.db-wal`, and `tasks.db-shm` are ignored by Git.
@@ -315,6 +324,213 @@ This demonstrates an important backend engineering idea: the API describes what 
 
 ---
 
+## AI vs Me — Bonus Stage 6
+
+After completing the SQLite migration manually, I repeated the task using AI-generated versions in separate folders so my original Stages 0–5 implementation remained unchanged.
+
+### Prompt V1
+
+This was my first prompt, written from memory:
+
+```text
+I have internship task to test CRUD api.I want to you do it using pythin.
+for task make sure you add checks for all possibble errors.
+Than i want to make store data in SQLlite and i want you to check for if database file is missing on restart its regenrate and for initially have atleast 3 records.
+```
+
+The first AI-generated version was stored in:
+
+```text
+ai-version/
+```
+
+### V1 Testing
+
+The AI V1 successfully:
+
+- created a SQLite database automatically
+- created three initial tasks
+- avoided duplicate seed tasks after restart
+- persisted newly created tasks after restart
+- supported GET, POST, PUT, and DELETE
+- returned `201` for successful creation
+- returned `204` with an empty body for successful deletion
+
+However, testing also revealed important differences from my hand-built API.
+
+### Concrete Differences
+
+#### 1. Invalid POST returned 422 instead of 400
+
+My hand-built implementation returns:
+
+```text
+400 Bad Request
+```
+
+with:
+
+```json
+{"error":"Title is required"}
+```
+
+AI V1 returned:
+
+```text
+422 Unprocessable Entity
+```
+
+with FastAPI/Pydantic validation output:
+
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "title"],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+This changed the API behavior from the original assignment.
+
+#### 2. Error response format changed
+
+For an unknown task ID, my implementation returns:
+
+```json
+{"error":"Task not found"}
+```
+
+AI V1 returned:
+
+```json
+{"detail":"Task not found"}
+```
+
+Both returned HTTP `404`, but the JSON response shape was different.
+
+#### 3. New task completion status changed
+
+My implementation always creates a new task with:
+
+```json
+"done": false
+```
+
+even if the client sends `done: true`.
+
+AI V1 accepted the client's value.
+
+For example:
+
+```json
+{
+  "title": "Should start false",
+  "done": true
+}
+```
+
+was created by AI V1 with:
+
+```text
+done = True
+```
+
+This changed the original POST behavior.
+
+### What the AI Did Better
+
+AI V1 introduced several useful implementation ideas:
+
+- Pydantic models for structured request validation
+- a reusable `get_connection()` helper
+- `sqlite3.Row` for named-column access
+- a database constraint for `done`
+- generic SQLite database error handling
+
+These ideas made parts of the code more structured and defensive.
+
+### What the AI Got Wrong or Changed
+
+The AI produced working code, but it did not preserve the complete API contract.
+
+It:
+
+- returned `422` instead of `400` for normal validation errors
+- used `{"detail": ...}` instead of the existing `{"error": ...}` error format
+- allowed clients to create tasks with `done=true`
+- made schema and validation decisions that were not explicitly requested
+
+The implementation was technically reasonable, but some choices were incompatible with the existing API.
+
+### What My First Prompt Forgot
+
+My first prompt was too general.
+
+I wrote:
+
+```text
+make sure you add checks for all possibble errors
+```
+
+but I did not specify:
+
+- which errors should return `400`
+- that normal validation errors should not return `422`
+- the required JSON error shape
+- that unknown IDs must return `404`
+- that POST must always force `done=false`
+- the exact CRUD endpoint behavior
+- that DELETE must return `204` with an empty body
+- that PUT must support title only, done only, or both
+
+Because these details were missing, the AI silently made those decisions itself.
+
+### Prompt V2 — Rematch
+
+After reviewing V1, I improved the prompt:
+
+```text
+i want to test CRUDapi using python and fastapi and sqllite3.I must make database file tasks.db and it must regenrate if its missing after server restart in database make table that contain tittle, id, done status. for initially have atleast 3 records. and it seed should exactlr return 3 when table is empty. i wan you to add endposints like get tasks and get task by id and push task, update task, delete task. i also want you to add checks for tittle like if user enter no tittle it show eroor tittle is not found and error code and for done stautus if must remain flase even enter trun when cretaing new one.invalide request must return like invalide body request 400,do not return for normal invalide errors 422,unknown task id 404 like this. show erroe like error: "this is error", and delet must return 204 and empty body after delting. PUT must allow title only, done only, or both. and make sure data survive after restart.
+```
+
+The rematch version was stored in:
+
+```text
+ai-version-v2/
+```
+
+### Rematch Result
+
+The improved prompt made the expected behavior much more explicit.
+
+In V2:
+
+- normal invalid request bodies returned `400` instead of `422`
+- unknown task IDs returned `404` using the required `{"error": ...}` format
+- new tasks stayed `done=false` even when the client supplied `done=true`
+- PUT allowed title only, done only, or both
+- DELETE returned `204` with an empty body
+- data continued to survive server restarts
+- the seed remained exactly three records when the table was empty
+
+The rematch produced an implementation much closer to the intended API contract.
+
+### What I Learned from the AI Rematch
+
+The biggest lesson was that working code is not automatically correct code.
+
+AI V1 produced a functional SQLite CRUD API, but because my first prompt did not fully describe the existing API contract, the AI made reasonable decisions that changed its behavior.
+
+Building the migration manually first made it possible for me to recognize those differences.
+
+The second prompt was much more precise because it was based on problems found through actual testing and comparison.
+
+---
+
 ## What I Learned
 
 Through this assignment I practiced:
@@ -336,6 +552,9 @@ Through this assignment I practiced:
 - Separating the API layer from the storage layer
 - Testing persistence across server restarts
 - Incremental Git commits
+- Reviewing AI-generated backend code
+- Comparing implementations with `git diff`
+- Improving prompts based on concrete test failures
 
 ---
 
@@ -350,6 +569,7 @@ Stage 2: insert into database
 Stage 3: update and delete with SQL
 Stage 4: explored SQLite
 Stage 5: database documentation
+Stage 6: AI vs me
 ```
 
 ---

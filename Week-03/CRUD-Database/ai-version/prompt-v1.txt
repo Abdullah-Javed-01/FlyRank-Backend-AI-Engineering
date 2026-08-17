@@ -1,0 +1,3 @@
+I have internship task to test CRUD api.I want to you do it using pythin.
+for task make sure you add checks for all possibble errors.
+Than i want to make store data in SQLlite and i want you to check for if database file is missing on restart its regenrate and for initially have atleast 3 records.
