@@ -393,6 +393,15 @@ Verified status codes:
 
 The created test rows were deleted afterward, and a direct PostgreSQL query confirmed that only the original three seeded tasks remained.
 
+### Stage 4 — Docker Compose and Persistence
+
+The FastAPI application and PostgreSQL database now run together with Docker Compose.
+
+The stack starts with:
+
+```powershell
+docker compose up
+
 ---
 
 ## AI vs Me — Bonus Stage 6
