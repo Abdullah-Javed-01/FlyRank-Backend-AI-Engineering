@@ -367,6 +367,18 @@ taskdata
 ```
 
 PostgreSQL 17 is pinned rather than using `postgres:latest` because PostgreSQL 18+ changed the Docker image data-directory layout.
+
+### Stage 2 — Read from PostgreSQL
+
+The existing API routes now read through the PostgreSQL repository.
+
+Verified behavior:
+
+- `GET /tasks` returns `200 OK` with rows stored in PostgreSQL.
+- `GET /tasks/1` returns the requested task.
+- `GET /tasks/999` returns `404 Not Found` with `{"error":"Task not found"}`.
+- Task IDs are passed through psycopg parameterized `%s` placeholders rather than being interpolated into SQL.
+
 ---
 
 ## AI vs Me — Bonus Stage 6
