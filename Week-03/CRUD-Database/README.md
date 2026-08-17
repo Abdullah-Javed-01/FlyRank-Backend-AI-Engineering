@@ -1,51 +1,88 @@
-# SQLite Task CRUD API
+# Task CRUD API — PostgreSQL + Docker
 
-A database-backed REST API built with **Python**, **FastAPI**, and **SQLite** for managing tasks.
+A database-backed REST API built with **Python**, **FastAPI**, **PostgreSQL**, and **Docker Compose** for managing tasks.
 
-This project was completed as part of the **FlyRank Backend AI Engineering Internship — Week 3, Assignment A2: Connecting Your CRUD to the Database**.
+This project is part of the **FlyRank Backend AI Engineering Internship** and continues the same CRUD API through three storage implementations:
 
-It continues the Week 2 CRUD API by replacing the temporary in-memory Python list with a persistent SQLite database while keeping the same CRUD endpoints and overall request/response behavior.
+```text
+A1: FastAPI -> In-memory Python list
+A2: FastAPI -> SQLite
+A3: FastAPI -> PostgreSQL in Docker
+```
+
+The API contract stays the same while the storage implementation changes.
 
 ---
 
-## What Changed from Week 2?
+## Current Version — A3 Containerized PostgreSQL
 
-In Week 2, tasks were stored in a Python list:
+The current version runs the FastAPI application against **PostgreSQL 17** in Docker.
 
-```text
-Client -> FastAPI -> In-memory Python list
+The API and database start together with:
+
+```powershell
+docker compose up
 ```
 
-Restarting the server caused newly created or updated data to disappear.
+PostgreSQL data is stored in a named Docker volume so it survives application and container restarts.
 
-In Week 3, the storage layer was replaced with SQLite:
-
-```text
-Client -> FastAPI -> SQLite database (tasks.db)
-```
-
-The API endpoints remain the same, but task data now survives application restarts.
+During the A3 SQLite → PostgreSQL storage swap, the FastAPI route layer in `main.py` remained unchanged. The storage implementation was isolated behind `repository.py`, so the actual database swap was handled in the repository and infrastructure/configuration files.
 
 ---
 
-## Features
+## What A3 Adds
 
-- Create new tasks
-- List all tasks
-- Retrieve a task by ID
-- Update task title and/or completion status
-- Delete tasks
-- Persistent SQLite storage
-- Automatic database creation
+- PostgreSQL 17 running in Docker
+- Persistent named Docker volume
+- PostgreSQL repository using `psycopg`
+- Connection configuration through `.env`
+- Committed `.env.example`
+- `.env` excluded from Git
+- Parameterized PostgreSQL queries using `%s`
 - Automatic `tasks` table creation
-- Three example tasks seeded only when the table is empty
-- Parameterized SQL queries
-- Input validation
-- JSON error responses
-- Correct HTTP status codes
-- Swagger UI documentation
-- Database inspection using DB Browser for SQLite
-- AI rematch comparison between a hand-built and AI-generated implementation
+- Three seed tasks inserted only when the table is empty
+- Dockerfile for the FastAPI application
+- Docker Compose stack with `api` and `db` services
+- PostgreSQL health check
+- One-command startup with `docker compose up`
+- Persistence verified across `docker compose down` → `docker compose up`
+- Existing CRUD routes, validation rules, error shape, and status codes preserved
+
+---
+
+## Architecture
+
+```text
+Client / curl / Swagger
+          |
+          v
+  localhost:8000
+          |
+          v
++-----------------------+
+| FastAPI API container |
+|        api            |
+|                       |
+|       main.py         |
+|          |            |
+|          v            |
+|    repository.py      |
++----------|------------+
+           |
+           | DATABASE_URL
+           | host = db
+           v
++-----------------------+
+| PostgreSQL 17         |
+| service: db           |
+| database: tasks       |
++----------|------------+
+           |
+           v
+   taskdata volume
+```
+
+Inside the Docker Compose network, the API reaches PostgreSQL using the Compose service hostname `db`, not `localhost`.
 
 ---
 
@@ -54,47 +91,19 @@ The API endpoints remain the same, but task data now survives application restar
 - Python 3.12
 - FastAPI
 - Uvicorn
-- SQLite
-- Python `sqlite3`
-- DB Browser for SQLite
+- PostgreSQL 17
+- `psycopg`
+- `python-dotenv`
+- Docker
+- Docker Compose
 - Git
 - GitHub
 
----
+Previous A2 tools retained as project history:
 
-## Why SQLite?
-
-SQLite was chosen because it is lightweight, requires no separate database server, and stores the database in a single file.
-
-Python includes the `sqlite3` module in its standard library, so no additional database package is required.
-
-Unlike the Week 2 in-memory list, SQLite provides persistence, meaning created and updated tasks remain available after the FastAPI server stops and starts again.
-
----
-
-## Database
-
-The application uses:
-
-```text
-tasks.db
-```
-
-The database is created automatically inside the Week 3 project directory when the application starts.
-
-The database file itself is excluded from Git using `.gitignore`, so each cloned copy of the project creates its own fresh database automatically.
-
-The application also creates the `tasks` table automatically if it does not already exist.
-
-### Tasks Table
-
-| Column | Type | Purpose |
-|---|---|---|
-| `id` | INTEGER | Primary key |
-| `title` | TEXT | Task title |
-| `done` | BOOLEAN | Completion status stored by SQLite as `0` or `1` |
-
-If the table is empty when the application starts, three example tasks are inserted automatically.
+- SQLite
+- Python `sqlite3`
+- DB Browser for SQLite
 
 ---
 
@@ -102,89 +111,97 @@ If the table is empty when the application starts, three example tasks are inser
 
 ```text
 CRUD-Database/
-├── main.py
+├── .dockerignore
+├── .env                  # local only, ignored by Git
+├── .env.example          # committed template
+├── Dockerfile
+├── compose.yaml
+├── main.py               # FastAPI routes / validation
+├── repository.py         # PostgreSQL storage implementation
 ├── requirements.txt
 ├── README.md
 ├── screenshots/
-│   └── database-browser.png
-├── ai-version/
+│   ├── database-browser.png
+│   └── postgres-persistence.png
+├── ai-version/           # A2 AI rematch V1
 │   ├── main.py
 │   ├── requirements.txt
 │   └── prompt-v1.txt
-└── ai-version-v2/
+└── ai-version-v2/        # A2 AI rematch V2
     ├── main.py
     ├── requirements.txt
     └── prompt-v2.txt
 ```
 
-Generated SQLite files such as `tasks.db`, `tasks.db-journal`, `tasks.db-wal`, and `tasks.db-shm` are ignored by Git.
+Local SQLite files from A2 and environment secrets are excluded through `.gitignore`.
 
 ---
 
-## Installation
+# Quick Start — A3
 
-### 1. Clone the repository
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/Abdullah-Javed-01/FlyRank-Backend-AI-Engineering.git
-cd FlyRank-Backend-AI-Engineering
+cd FlyRank-Backend-AI-Engineering/Week-03/CRUD-Database
 ```
 
-### 2. Create a virtual environment
+## 2. Create `.env` from the example
 
-```bash
-python -m venv .venv
-```
-
-### 3. Activate the environment
-
-#### Windows PowerShell
+### Windows PowerShell
 
 ```powershell
-.\.venv\Scripts\Activate.ps1
+Copy-Item .env.example .env
 ```
 
-#### macOS / Linux
+### macOS / Linux
 
 ```bash
-source .venv/bin/activate
+cp .env.example .env
 ```
 
-### 4. Install dependencies
+The example file contains the required variables:
 
-```bash
-pip install -r Week-03/CRUD-Database/requirements.txt
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=CHANGE_ME
+POSTGRES_DB=tasks
+DATABASE_URL=postgresql://postgres:CHANGE_ME@db:5432/tasks
 ```
 
----
+For local development, replace `CHANGE_ME` with any local database password you want to use. The value in `POSTGRES_PASSWORD` and the password inside `DATABASE_URL` must match.
 
-## Running the API
+## 3. Start the complete stack
 
-Move into the Week 3 project:
-
-```bash
-cd Week-03/CRUD-Database
+```powershell
+docker compose up
 ```
 
-Start the development server:
+Docker Compose starts:
 
-```bash
-uvicorn main:app --reload
-```
+- the FastAPI application on port `8000`
+- PostgreSQL 17 on port `5432`
+- the persistent `taskdata` volume
 
-The API will run at:
+The API is available at:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Swagger UI is available at:
+Swagger UI:
 
 ```text
 http://127.0.0.1:8000/docs
 ```
 
-On the first run, `tasks.db` and the `tasks` table are created automatically.
+To stop the stack:
+
+```powershell
+docker compose down
+```
+
+Do not add `-v` if you want to keep the PostgreSQL data.
 
 ---
 
@@ -193,11 +210,11 @@ On the first run, `tasks.db` and the `tasks` table are created automatically.
 | Method | Endpoint | Description | Success Status |
 |---|---|---|---|
 | `GET` | `/` | API information | `200 OK` |
-| `GET` | `/health` | Health check | `200 OK` |
+| `GET` | `/health` | API health check | `200 OK` |
 | `GET` | `/tasks` | Return all tasks | `200 OK` |
 | `GET` | `/tasks/{task_id}` | Return one task | `200 OK` |
-| `POST` | `/tasks` | Create a task | `201 Created` |
-| `PUT` | `/tasks/{task_id}` | Update a task | `200 OK` |
+| `POST` | `/tasks` | Create a new task | `201 Created` |
+| `PUT` | `/tasks/{task_id}` | Update title and/or done status | `200 OK` |
 | `DELETE` | `/tasks/{task_id}` | Delete a task | `204 No Content` |
 
 Invalid request bodies return:
@@ -212,107 +229,350 @@ Unknown task IDs return:
 404 Not Found
 ```
 
+with the existing JSON error format:
+
+```json
+{"error":"Task not found"}
+```
+
 ---
 
-## SQL Queries
+## Example `curl -i`
 
-All CRUD operations use SQL queries with parameterized placeholders instead of inserting user input directly into SQL strings.
+Verified request:
+
+```powershell
+curl.exe -i http://127.0.0.1:8000/tasks
+```
+
+Verified response:
+
+```text
+HTTP/1.1 200 OK
+server: uvicorn
+content-type: application/json
+
+[{"id":1,"title":"Task 1","done":false},{"id":2,"title":"Task 2","done":true},{"id":3,"title":"Task 3","done":false}]
+```
+
+---
+
+## PostgreSQL Table
+
+The repository automatically creates:
+
+```sql
+CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    done BOOLEAN NOT NULL DEFAULT FALSE
+);
+```
+
+If the table is empty, the application inserts exactly three example tasks:
+
+```text
+1 | Task 1 | false
+2 | Task 2 | true
+3 | Task 3 | false
+```
+
+Restarting the app does not create duplicate seed rows because the repository checks the current task count first.
+
+---
+
+## Parameterized Queries
+
+All user-controlled values are passed separately from the SQL string.
 
 Example:
 
-```sql
-SELECT id, title, done FROM tasks WHERE id = ?;
+```python
+cursor.execute(
+    "SELECT id, title, done FROM tasks WHERE id = %s",
+    (task_id,),
+)
 ```
 
-The task ID is supplied separately to the query.
+The same approach is used for `INSERT`, `UPDATE`, and `DELETE`.
 
-Parameterized queries help prevent SQL injection and keep database access safer.
+This avoids building SQL statements by concatenating user input directly into the query.
 
 ---
 
-## SQL Explored Manually
+# A3 Verification
 
-The database was opened using **DB Browser for SQLite** and the following queries were executed manually:
+## Stage 0 — PostgreSQL in Docker
 
-```sql
-SELECT * FROM tasks;
+PostgreSQL was first started as a standalone Docker container with a persistent named volume:
+
+```powershell
+docker run --name taskdb -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=tasks -p 5432:5432 -v taskdata:/var/lib/postgresql/data -d postgres:17
 ```
 
-```sql
-SELECT * FROM tasks WHERE done = 1;
+Verified with:
+
+```powershell
+docker ps
+docker volume ls
+docker exec -it taskdb psql -U postgres -d tasks
 ```
 
-```sql
-SELECT COUNT(*) FROM tasks;
-```
-
-```sql
-UPDATE tasks SET done = 1;
-```
-
-```sql
-DELETE FROM tasks WHERE done = 1;
-```
-
-### Example SQL Query
-
-```sql
-SELECT * FROM tasks WHERE done = 1;
-```
-
-This query returned only tasks marked as completed, where SQLite stores the `done` value as `1`.
-
-Changes made directly in DB Browser were visible through the FastAPI endpoints after the database transaction was committed, because both the API and DB Browser use the same SQLite database file.
+`postgres:17` is pinned because PostgreSQL 18+ changed the Docker image data-directory layout. PostgreSQL 17 remains compatible with the assignment's `/var/lib/postgresql/data` volume path.
 
 ---
 
-## Database Screenshot
+## Repository Boundary
 
-The screenshot below shows the `tasks` table opened in DB Browser for SQLite.
+Before the PostgreSQL swap, the A2 SQLite database code was moved into `repository.py`.
+
+The route and validation layer remained in `main.py`.
+
+```text
+main.py
+   |
+   v
+repository.py
+   |
+   +--> A2: SQLite
+   |
+   +--> A3: PostgreSQL
+```
+
+After the repository boundary existed, `main.py` stayed unchanged during the SQLite → PostgreSQL storage swap.
+
+This demonstrates that storage is an implementation detail behind the API.
+
+---
+
+## Stage 1 — Connect via `.env` and Create the Table
+
+The PostgreSQL connection string is loaded from:
+
+```text
+.env
+```
+
+The real `.env` file is ignored by Git, while `.env.example` documents the required configuration.
+
+The repository:
+
+1. connects with `psycopg`
+2. creates the `tasks` table if missing
+3. checks the number of rows
+4. seeds the three example tasks only when the table is empty
+
+The app was restarted multiple times and the table remained at exactly three seed rows:
+
+```text
+1 | Task 1 | false
+2 | Task 2 | true
+3 | Task 3 | false
+```
+
+---
+
+## Stage 2 — Read from PostgreSQL
+
+The existing read endpoints were verified against PostgreSQL.
+
+Verified behavior:
+
+- `GET /tasks` → `200 OK`
+- `GET /tasks/1` → `200 OK`
+- `GET /tasks/999` → `404 Not Found`
+- unknown task response → `{"error":"Task not found"}`
+
+The task ID lookup uses a parameterized `%s` placeholder.
+
+Direct PostgreSQL inspection showed the same rows returned by the API.
+
+---
+
+## Stage 3 — Full CRUD on PostgreSQL
+
+The complete CRUD cycle was tested against PostgreSQL.
+
+Verified status codes:
+
+| Test | Result |
+|---|---|
+| Create task | `201 Created` |
+| Update task | `200 OK` |
+| Read updated task | `200 OK` |
+| Delete task | `204 No Content` |
+| Read deleted task | `404 Not Found` |
+| Create with empty title | `400 Bad Request` |
+
+Verified validation response:
+
+```json
+{"error":"Title is required"}
+```
+
+Verified unknown task response:
+
+```json
+{"error":"Task not found"}
+```
+
+The temporary CRUD test rows were deleted afterward.
+
+---
+
+## Stage 4 — Docker Compose and Persistence
+
+The FastAPI application and PostgreSQL database now run together with Docker Compose.
+
+The complete stack starts with:
+
+```powershell
+docker compose up
+```
+
+The Compose stack contains:
+
+- `api` — FastAPI on port `8000`
+- `db` — PostgreSQL 17
+- `taskdata` — named persistent volume
+
+The database service also has a PostgreSQL health check, and the API waits for the database to become healthy.
+
+### Persistence Check
+
+Persistence was verified by:
+
+1. starting the stack with `docker compose up`
+2. creating a task named `A3 persistence proof`
+3. confirming it through `GET /tasks`
+4. running `docker compose down`
+5. verifying the named Docker volume still existed
+6. starting the complete stack again with `docker compose up`
+7. calling `GET /tasks` again
+8. querying PostgreSQL directly with `psql`
+
+The persistence row remained after both containers were recreated.
+
+Direct PostgreSQL result:
+
+```text
+ id |        title         | done
+----+----------------------+------
+  1 | Task 1               | f
+  2 | Task 2               | t
+  3 | Task 3               | f
+  6 | A3 persistence proof | f
+```
+
+### PostgreSQL Persistence Screenshot
+
+![PostgreSQL persistence proof](screenshots/postgres-persistence.png)
+
+The screenshot shows both the `tasks` table and the persisted `A3 persistence proof` row after the full-stack restart.
+
+---
+
+## Stage 5 — One-Command Stack and Documentation
+
+A clean setup requires no manual PostgreSQL installation or table creation.
+
+The expected workflow is:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up
+```
+
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+docker compose up
+```
+
+After startup:
+
+```powershell
+curl.exe -i http://127.0.0.1:8000/tasks
+```
+
+returns the seeded tasks.
+
+No manual SQL setup is required because the repository creates and seeds the table automatically.
+
+---
+
+## Secrets and Git Safety
+
+The real `.env` file is excluded from Git.
+
+Verified locally with:
+
+```powershell
+git check-ignore -v .env
+```
+
+The file is not tracked:
+
+```powershell
+git ls-files .env
+```
+
+and no `.env` commit exists in the repository history:
+
+```powershell
+git log --all --full-history -- .env
+```
+
+Only `.env.example` is committed.
+
+The Docker build context also excludes `.env` through `.dockerignore`.
+
+---
+
+# A2 History — SQLite Version
+
+Before A3, the same API used SQLite for Assignment A2.
+
+The storage progression was:
+
+```text
+A1:
+API -> Python list
+
+A2:
+API -> SQLite tasks.db
+
+A3:
+API -> PostgreSQL container
+```
+
+A2 introduced:
+
+- persistent SQLite storage
+- automatic `tasks.db` creation
+- automatic table creation
+- seed-once behavior
+- SQL CRUD queries
+- parameterized SQLite placeholders
+- DB Browser inspection
+- persistence across application restarts
+
+The SQLite database itself is ignored by Git.
+
+### A2 Database Screenshot
 
 ![SQLite database in DB Browser](screenshots/database-browser.png)
 
-The screenshot includes tasks created through the API, demonstrating that the data was stored persistently in SQLite.
+The screenshot shows rows stored in the SQLite database during A2.
 
 ---
 
-## Persistence Test
+# A2 AI vs Me — Bonus Stage 6
 
-Persistence was tested by:
+For the optional A2 AI rematch, the manually built SQLite implementation remained untouched while AI-generated versions were created in separate folders.
 
-1. Creating new tasks through `POST /tasks`
-2. Confirming them through `GET /tasks`
-3. Stopping the FastAPI server
-4. Restarting the server
-5. Calling `GET /tasks` again
-
-The created tasks remained available after the restart.
-
-Database changes made manually through DB Browser were also verified through the API.
-
----
-
-## Automatic Database Setup
-
-A clean copy of the project requires no manual database setup.
-
-When the application starts:
-
-1. SQLite creates `tasks.db` if it does not exist.
-2. The application creates the `tasks` table if it does not exist.
-3. The application counts the existing rows.
-4. If the table is empty, three example tasks are inserted.
-5. If tasks already exist, no duplicate seed data is added.
-
-This allows someone cloning the repository to start the API without manually creating the database.
-
----
-
-eated the task using AI-generated versions in separate folders so my original Stages 0–5 implementation remained unchanged.
-
-### Prompt V1
-
-This was my first prompt, written from memory:
+## Prompt V1
 
 ```text
 I have internship task to test CRUD api.I want to you do it using pythin.
@@ -320,246 +580,94 @@ for task make sure you add checks for all possibble errors.
 Than i want to make store data in SQLlite and i want you to check for if database file is missing on restart its regenrate and for initially have atleast 3 records.
 ```
 
-The first AI-generated version was stored in:## Storage Layer Separation
-
-The external API remains the same while the storage implementation changes.
-
-```text
-Week 2:
-API -> Python list
-
-Week 3:
-API -> SQLite
-```
-
-This demonstrates an important backend engineering idea: the API describes what the application does, while the database is an implementation detail describing where the data is stored.
-
-
-
-## A3 — Containerized PostgreSQL
-
-### Stage 0 — PostgreSQL in Docker
-
-A3 replaces the SQLite storage used in A2 with PostgreSQL running in Docker.
-
-For local development, PostgreSQL 17 is started with a named Docker volume so database data survives container restarts:
-
-```powershell
-docker run --name taskdb -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=tasks -p 5432:5432 -v taskdata:/var/lib/postgresql/data -d postgres:17
-```
-
-Verify the container:
-
-```powershell
-docker ps
-```
-
-Open PostgreSQL:
-
-```powershell
-docker exec -it taskdb psql -U postgres -d tasks
-```
-
-The named volume is:
-
-```text
-taskdata
-```
-
-PostgreSQL 17 is pinned rather than using `postgres:latest` because PostgreSQL 18+ changed the Docker image data-directory layout.
-
-### Stage 2 — Read from PostgreSQL
-
-The existing API routes now read through the PostgreSQL repository.
-
-Verified behavior:
-
-- `GET /tasks` returns `200 OK` with rows stored in PostgreSQL.
-- `GET /tasks/1` returns the requested task.
-- `GET /tasks/999` returns `404 Not Found` with `{"error":"Task not found"}`.
-- Task IDs are passed through psycopg parameterized `%s` placeholders rather than being interpolated into SQL.
-
-### Stage 3 — Full CRUD on PostgreSQL
-
-The complete CRUD cycle was verified against PostgreSQL while keeping the existing API behavior unchanged.
-
-Verified status codes:
-
-- `POST /tasks` → `201 Created`
-- `PUT /tasks/{id}` → `200 OK`
-- `DELETE /tasks/{id}` → `204 No Content`
-- Requests for an unknown task → `404 Not Found` with `{"error":"Task not found"}`
-- Invalid task creation with an empty title → `400 Bad Request` with `{"error":"Title is required"}`
-
-The created test rows were deleted afterward, and a direct PostgreSQL query confirmed that only the original three seeded tasks remained.
-
-### Stage 4 — Docker Compose and Persistence
-
-The FastAPI application and PostgreSQL database now run together with Docker Compose.
-
-The stack starts with:
-
-```powershell
-docker compose up
-
----
-
-## AI vs Me — Bonus Stage 6
-
-After completing the SQLite migration manually, I rep
+The first AI-generated version was stored in:
 
 ```text
 ai-version/
 ```
 
-### V1 Testing
+### V1 Findings
 
-The AI V1 successfully:
+The first AI version successfully:
 
 - created a SQLite database automatically
-- created three initial tasks
-- avoided duplicate seed tasks after restart
-- persisted newly created tasks after restart
-- supported GET, POST, PUT, and DELETE
-- returned `201` for successful creation
-- returned `204` with an empty body for successful deletion
+- seeded three initial tasks
+- avoided duplicate seeds after restart
+- persisted created tasks
+- supported CRUD
+- returned `201` on creation
+- returned `204` on successful deletion
 
-However, testing also revealed important differences from my hand-built API.
+However, it changed parts of the API contract.
 
 ### Concrete Differences
 
-#### 1. Invalid POST returned 422 instead of 400
+#### 1. Invalid POST
 
-My hand-built implementation returns:
+Hand-built version:
 
 ```text
 400 Bad Request
 ```
 
-with:
-
 ```json
 {"error":"Title is required"}
 ```
 
-AI V1 returned:
+AI V1 returned FastAPI/Pydantic `422 Unprocessable Entity`.
 
-```text
-422 Unprocessable Entity
-```
+#### 2. Error Shape
 
-with FastAPI/Pydantic validation output:
-
-```json
-{
-  "detail": [
-    {
-      "type": "missing",
-      "loc": ["body", "title"],
-      "msg": "Field required"
-    }
-  ]
-}
-```
-
-This changed the API behavior from the original assignment.
-
-#### 2. Error response format changed
-
-For an unknown task ID, my implementation returns:
+Hand-built version:
 
 ```json
 {"error":"Task not found"}
 ```
 
-AI V1 returned:
+AI V1:
 
 ```json
 {"detail":"Task not found"}
 ```
 
-Both returned HTTP `404`, but the JSON response shape was different.
+#### 3. POST `done` Behavior
 
-#### 3. New task completion status changed
-
-My implementation always creates a new task with:
+The hand-built implementation always creates new tasks with:
 
 ```json
 "done": false
 ```
 
-even if the client sends `done: true`.
+AI V1 allowed the client to create a task with `done=true`.
 
-AI V1 accepted the client's value.
+### What AI V1 Did Better
 
-For example:
+AI V1 introduced some useful ideas:
 
-```json
-{
-  "title": "Should start false",
-  "done": true
-}
-```
+- Pydantic request models
+- reusable connection helper
+- `sqlite3.Row`
+- additional database constraints
+- generic database error handling
 
-was created by AI V1 with:
+### What the First Prompt Forgot
 
-```text
-done = True
-```
+The first prompt did not specify:
 
-This changed the original POST behavior.
+- exact `400` validation behavior
+- that normal validation should not become `422`
+- required `{"error": ...}` response shape
+- unknown ID → `404`
+- POST must force `done=false`
+- exact endpoint behavior
+- DELETE → `204` with empty body
+- PUT must allow title only, done only, or both
 
-### What the AI Did Better
+Because these details were missing, the AI made reasonable but incompatible decisions.
 
-AI V1 introduced several useful implementation ideas:
+---
 
-- Pydantic models for structured request validation
-- a reusable `get_connection()` helper
-- `sqlite3.Row` for named-column access
-- a database constraint for `done`
-- generic SQLite database error handling
-
-These ideas made parts of the code more structured and defensive.
-
-### What the AI Got Wrong or Changed
-
-The AI produced working code, but it did not preserve the complete API contract.
-
-It:
-
-- returned `422` instead of `400` for normal validation errors
-- used `{"detail": ...}` instead of the existing `{"error": ...}` error format
-- allowed clients to create tasks with `done=true`
-- made schema and validation decisions that were not explicitly requested
-
-The implementation was technically reasonable, but some choices were incompatible with the existing API.
-
-### What My First Prompt Forgot
-
-My first prompt was too general.
-
-I wrote:
-
-```text
-make sure you add checks for all possibble errors
-```
-
-but I did not specify:
-
-- which errors should return `400`
-- that normal validation errors should not return `422`
-- the required JSON error shape
-- that unknown IDs must return `404`
-- that POST must always force `done=false`
-- the exact CRUD endpoint behavior
-- that DELETE must return `204` with an empty body
-- that PUT must support title only, done only, or both
-
-Because these details were missing, the AI silently made those decisions itself.
-
-### Prompt V2 — Rematch
-
-After reviewing V1, I improved the prompt:
+## Prompt V2 — Rematch
 
 ```text
 i want to test CRUDapi using python and fastapi and sqllite3.I must make database file tasks.db and it must regenrate if its missing after server restart in database make table that contain tittle, id, done status. for initially have atleast 3 records. and it seed should exactlr return 3 when table is empty. i wan you to add endposints like get tasks and get task by id and push task, update task, delete task. i also want you to add checks for tittle like if user enter no tittle it show eroor tittle is not found and error code and for done stautus if must remain flase even enter trun when cretaing new one.invalide request must return like invalide body request 400,do not return for normal invalide errors 422,unknown task id 404 like this. show erroe like error: "this is error", and delet must return 204 and empty body after delting. PUT must allow title only, done only, or both. and make sure data survive after restart.
@@ -571,78 +679,75 @@ The rematch version was stored in:
 ai-version-v2/
 ```
 
-### Rematch Result
+### V2 Result
 
-The improved prompt made the expected behavior much more explicit.
+The improved prompt produced a version much closer to the intended API contract:
 
-In V2:
-
-- normal invalid request bodies returned `400` instead of `422`
-- unknown task IDs returned `404` using the required `{"error": ...}` format
-- new tasks stayed `done=false` even when the client supplied `done=true`
-- PUT allowed title only, done only, or both
+- invalid request bodies returned `400`
+- unknown IDs returned `404`
+- errors used `{"error": ...}`
+- new tasks remained `done=false`
+- PUT accepted title only, done only, or both
 - DELETE returned `204` with an empty body
-- data continued to survive server restarts
-- the seed remained exactly three records when the table was empty
+- data survived restart
+- seed behavior remained exactly three rows on an empty table
 
-The rematch produced an implementation much closer to the intended API contract.
+### A2 AI Rematch Lesson
 
-### What I Learned from the AI Rematch
+Working code is not automatically correct code.
 
-The biggest lesson was that working code is not automatically correct code.
-
-AI V1 produced a functional SQLite CRUD API, but because my first prompt did not fully describe the existing API contract, the AI made reasonable decisions that changed its behavior.
-
-Building the migration manually first made it possible for me to recognize those differences.
-
-The second prompt was much more precise because it was based on problems found through actual testing and comparison.
+The first AI version was functional, but the prompt did not fully specify the existing API contract. Building and testing the assignment manually first made it possible to identify the differences and write a much stronger second prompt.
 
 ---
 
-## What I Learned
+# What I Learned
 
-Through this assignment I practiced:
+Across A2 and A3, I practiced:
 
-- SQLite database fundamentals
-- Persistent data storage
-- SQL `SELECT`
-- SQL `INSERT`
-- SQL `UPDATE`
-- SQL `DELETE`
-- SQL `WHERE`
-- SQL `COUNT`
-- Primary keys
-- Database tables, rows, and columns
-- Parameterized SQL queries
-- SQLite transactions
-- Python's `sqlite3` module
-- Inspecting databases with DB Browser for SQLite
-- Separating the API layer from the storage layer
-- Testing persistence across server restarts
-- Incremental Git commits
-- Reviewing AI-generated backend code
-- Comparing implementations with `git diff`
-- Improving prompts based on concrete test failures
+- FastAPI CRUD development
+- HTTP status codes
+- validation and JSON error responses
+- SQL `SELECT`, `INSERT`, `UPDATE`, and `DELETE`
+- parameterized SQL
+- SQLite persistence
+- PostgreSQL fundamentals
+- PostgreSQL `SERIAL` primary keys
+- `psycopg`
+- environment variables and `.env`
+- secrets management with `.gitignore`
+- repository/storage separation
+- Docker images and containers
+- Docker volumes
+- Dockerfiles
+- Docker Compose
+- service-to-service networking
+- PostgreSQL health checks
+- persistence across full container recreation
+- incremental Git commits
+- reviewing AI-generated backend code
+- improving prompts based on concrete test failures
+
+The most important architecture lesson was that the external API can remain stable while the storage engine changes underneath it.
 
 ---
 
-## Development Stages
+# Development History
 
-The database migration was implemented incrementally:
+A3 was completed incrementally with one honest commit per stage:
 
 ```text
-Stage 0: create SQLite database
-Stage 1: database read endpoints
-Stage 2: insert into database
-Stage 3: update and delete with SQL
-Stage 4: explored SQLite
-Stage 5: database documentation
-Stage 6: AI vs me
+Stage 0: Postgres in Docker + gitignore
+Refactor: extract database repository boundary
+Stage 1: connect via .env and create table
+Stage 2: verify reads from Postgres
+Stage 3: full CRUD on Postgres
+Stage 4: docker-compose the whole stack
+Stage 5: one-command stack + docs
 ```
 
 ---
 
-## Author
+# Author
 
 **Abdullah Javed**
 
