@@ -91,23 +91,28 @@ def get_task(task_id: int):
 
 @app.post("/tasks", description="Create a new task with done set to false.", status_code=201)
 def create_task(task: dict):
-    if (
-            "title" not in task
-            or not isinstance(task["title"], str)
-            or not task["title"].strip()
-        ):
+    title = task.get("title")
+
+    if not isinstance(title, str) or not title.strip():
         return JSONResponse(
-            content={"error": "Title is required and must be a non-empty string"},
-            status_code=400
+            content={"error": "Title is required"},
+            status_code=400,
         )
-    next_id = max(task["id"] for task in tasks) + 1 if tasks else 1
-    new_task = {
-        "id": next_id,
-        "title": task["title"].strip(),
-        "done": False
-    }
-    tasks.append(new_task)
-    return new_task
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.execute(
+            "INSERT INTO tasks (title, done) VALUES (?, ?)",
+            (title.strip(), False),
+        )
+
+        new_task_id = cursor.lastrowid
+
+        row = connection.execute(
+            "SELECT id, title, done FROM tasks WHERE id = ?",
+            (new_task_id,),
+        ).fetchone()
+
+    return row_to_task(row)
 
 @app.put("/tasks/{task_id}", description="Update the title and/or done status of a task.")
 def update_task(task_id: int, data: dict):
