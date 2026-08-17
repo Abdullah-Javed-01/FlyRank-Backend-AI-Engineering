@@ -308,7 +308,19 @@ This allows someone cloning the repository to start the API without manually cre
 
 ---
 
-## Storage Layer Separation
+eated the task using AI-generated versions in separate folders so my original Stages 0–5 implementation remained unchanged.
+
+### Prompt V1
+
+This was my first prompt, written from memory:
+
+```text
+I have internship task to test CRUD api.I want to you do it using pythin.
+for task make sure you add checks for all possibble errors.
+Than i want to make store data in SQLlite and i want you to check for if database file is missing on restart its regenrate and for initially have atleast 3 records.
+```
+
+The first AI-generated version was stored in:## Storage Layer Separation
 
 The external API remains the same while the storage implementation changes.
 
@@ -322,23 +334,44 @@ API -> SQLite
 
 This demonstrates an important backend engineering idea: the API describes what the application does, while the database is an implementation detail describing where the data is stored.
 
+
+
+## A3 — Containerized PostgreSQL
+
+### Stage 0 — PostgreSQL in Docker
+
+A3 replaces the SQLite storage used in A2 with PostgreSQL running in Docker.
+
+For local development, PostgreSQL 17 is started with a named Docker volume so database data survives container restarts:
+
+```powershell
+docker run --name taskdb -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=tasks -p 5432:5432 -v taskdata:/var/lib/postgresql/data -d postgres:17
+```
+
+Verify the container:
+
+```powershell
+docker ps
+```
+
+Open PostgreSQL:
+
+```powershell
+docker exec -it taskdb psql -U postgres -d tasks
+```
+
+The named volume is:
+
+```text
+taskdata
+```
+
+PostgreSQL 17 is pinned rather than using `postgres:latest` because PostgreSQL 18+ changed the Docker image data-directory layout.
 ---
 
 ## AI vs Me — Bonus Stage 6
 
-After completing the SQLite migration manually, I repeated the task using AI-generated versions in separate folders so my original Stages 0–5 implementation remained unchanged.
-
-### Prompt V1
-
-This was my first prompt, written from memory:
-
-```text
-I have internship task to test CRUD api.I want to you do it using pythin.
-for task make sure you add checks for all possibble errors.
-Than i want to make store data in SQLlite and i want you to check for if database file is missing on restart its regenrate and for initially have atleast 3 records.
-```
-
-The first AI-generated version was stored in:
+After completing the SQLite migration manually, I rep
 
 ```text
 ai-version/
