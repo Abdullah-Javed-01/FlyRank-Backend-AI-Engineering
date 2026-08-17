@@ -379,6 +379,20 @@ Verified behavior:
 - `GET /tasks/999` returns `404 Not Found` with `{"error":"Task not found"}`.
 - Task IDs are passed through psycopg parameterized `%s` placeholders rather than being interpolated into SQL.
 
+### Stage 3 — Full CRUD on PostgreSQL
+
+The complete CRUD cycle was verified against PostgreSQL while keeping the existing API behavior unchanged.
+
+Verified status codes:
+
+- `POST /tasks` → `201 Created`
+- `PUT /tasks/{id}` → `200 OK`
+- `DELETE /tasks/{id}` → `204 No Content`
+- Requests for an unknown task → `404 Not Found` with `{"error":"Task not found"}`
+- Invalid task creation with an empty title → `400 Bad Request` with `{"error":"Title is required"}`
+
+The created test rows were deleted afterward, and a direct PostgreSQL query confirmed that only the original three seeded tasks remained.
+
 ---
 
 ## AI vs Me — Bonus Stage 6
