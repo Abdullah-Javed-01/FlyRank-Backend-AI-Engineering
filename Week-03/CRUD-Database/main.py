@@ -46,24 +46,6 @@ def row_to_task(row):
         "done": bool(row[2]),
     }
 
-tasks = [
-    {
-        "id": 1,
-        "title": "Task 1",
-        "done": False
-    },
-    {
-        "id": 2,
-        "title": "Task 2",
-        "done": True
-    },
-    {
-        "id": 3,
-        "title": "Task 3",
-        "done": False
-    }
-]
-
 @app.get("/tasks", description="Return all tasks stored in the SQLite database.")
 def get_tasks():
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -116,43 +98,77 @@ def create_task(task: dict):
 
 @app.put("/tasks/{task_id}", description="Update the title and/or done status of a task.")
 def update_task(task_id: int, data: dict):
-    for task in tasks:
-        if task["id"] == task_id:
-            if "title" not in data and "done" not in data:
-                return JSONResponse(
-                    content={"error": "Request must include title or done"},
-                    status_code=400
-                )
-            if "title" in data:
-                if not isinstance(data["title"], str) or not data["title"].strip():
-                    return JSONResponse(
-                        content={"error": "Title must be a non-empty string"},
-                        status_code=400
-                    )
-                task["title"] = data["title"].strip()
-            if "done" in data:
-                if not isinstance(data["done"], bool):
-                    return JSONResponse(
-                        content={"error": "Done must be a boolean value"},
-                        status_code=400
-                    )
-                task["done"] = data["done"]
-            return task
-    return JSONResponse(
-        content={"error": "Task " + str(task_id) + " not found"},
-        status_code=404
-    )
+    if "title" not in data and "done" not in data:
+        return JSONResponse(
+            content={"error": "Request must include title or done"},
+            status_code=400,
+        )
+
+    if "title" in data:
+        if not isinstance(data["title"], str) or not data["title"].strip():
+            return JSONResponse(
+                content={"error": "Title must be a non-empty string"},
+                status_code=400,
+            )
+
+    if "done" in data:
+        if not isinstance(data["done"], bool):
+            return JSONResponse(
+                content={"error": "Done must be a boolean value"},
+                status_code=400,
+            )
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        row = connection.execute(
+            "SELECT id, title, done FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+
+        if row is None:
+            return JSONResponse(
+                content={"error": "Task not found"},
+                status_code=404,
+            )
+
+        updated_title = (
+            data["title"].strip()
+            if "title" in data
+            else row[1]
+        )
+
+        updated_done = (
+            data["done"]
+            if "done" in data
+            else bool(row[2])
+        )
+
+        connection.execute(
+            "UPDATE tasks SET title = ?, done = ? WHERE id = ?",
+            (updated_title, updated_done, task_id),
+        )
+
+        updated_row = connection.execute(
+            "SELECT id, title, done FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+
+    return row_to_task(updated_row)
     
 @app.delete("/tasks/{task_id}", status_code=204, description="Delete a task by its ID.")
 def delete_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            tasks.remove(task)
-            return Response(status_code=204)
-    return JSONResponse(
-        content={"error": "Task " + str(task_id) + " not found"},
-        status_code=404
-    )
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.execute(
+            "DELETE FROM tasks WHERE id = ?",
+            (task_id,),
+        )
+
+        if cursor.rowcount == 0:
+            return JSONResponse(
+                content={"error": "Task not found"},
+                status_code=404,
+            )
+
+    return Response(status_code=204)
 
 @app.get("/", description="Return basic information about the Task API.")
 def get_values():
