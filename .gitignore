@@ -2,7 +2,16 @@
 __pycache__/
 *.pyc
 
+# Archive / submission files
+*.zip
+
 # FlyRank provided reference materials
 W2 - Backend 101 - Presentation with resources.html
 W2 - Backend 101 - Presentation.html
 W2 - Build your first CRUD API.pdf
+W3 - Connecting your CRUD to the database.pdf
+
+
+# SQLite database
+tasks.db
+*.db
