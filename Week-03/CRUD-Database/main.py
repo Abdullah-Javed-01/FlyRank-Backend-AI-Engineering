@@ -39,6 +39,13 @@ def initialize_database():
 
 initialize_database()
 
+def row_to_task(row):
+    return {
+        "id": row[0],
+        "title": row[1],
+        "done": bool(row[2]),
+    }
+
 tasks = [
     {
         "id": 1,
@@ -57,19 +64,30 @@ tasks = [
     }
 ]
 
-@app.get("/tasks", description="Return all tasks stored in memory.")
+@app.get("/tasks", description="Return all tasks stored in the SQLite database.")
 def get_tasks():
-    return tasks
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        rows = connection.execute(
+            "SELECT id, title, done FROM tasks"
+        ).fetchall()
+
+    return [row_to_task(row) for row in rows]
 
 @app.get("/tasks/{task_id}", description="Return one task by its ID.")
 def get_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
-    return JSONResponse(
-        content={"error": "Task " + str(task_id) + " not found"},
-        status_code=404
-)
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        row = connection.execute(
+            "SELECT id, title, done FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+
+    if row is None:
+        return JSONResponse(
+            content={"error": "Task not found"},
+            status_code=404,
+        )
+
+    return row_to_task(row)
 
 @app.post("/tasks", description="Create a new task with done set to false.", status_code=201)
 def create_task(task: dict):
