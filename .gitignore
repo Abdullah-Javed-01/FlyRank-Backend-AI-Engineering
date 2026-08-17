@@ -12,6 +12,8 @@ W2 - Build your first CRUD API.pdf
 W3 - Connecting your CRUD to the database.pdf
 
 
-# SQLite database
-tasks.db
+# SQLite database and temporary files
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
