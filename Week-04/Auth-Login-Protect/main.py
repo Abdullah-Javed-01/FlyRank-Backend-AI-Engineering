@@ -12,6 +12,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Missing Supabase environment variables")
@@ -29,6 +30,20 @@ security = HTTPBearer(auto_error=False)
 class AuthCredentials(BaseModel):
     email: str | None = None
     password: str | None = None
+    
+class AuthorizationError(Exception):
+    def __init__(self, message: str):
+        self.message = message
+        
+@app.exception_handler(AuthorizationError)
+async def authorization_error_handler(
+    request: Request,
+    exc: AuthorizationError,
+):
+    return JSONResponse(
+        status_code=403,
+        content={"error": exc.message},
+    )
 
 @app.exception_handler(AuthError)
 async def auth_error_handler(request: Request, exc: AuthError):
@@ -68,6 +83,20 @@ def get_current_user(
 
     except Exception:
         raise AuthError("Invalid or expired token")
+    
+def get_admin_user(current_user=Depends(get_current_user)):
+    if not ADMIN_EMAIL or current_user.email != ADMIN_EMAIL:
+        raise AuthorizationError("Admin access required")
+
+    return current_user
+
+@app.get("/protected/admin")
+def protected_admin(admin_user=Depends(get_admin_user)):
+    return {
+        "message": "Welcome, admin",
+        "user_id": str(admin_user.id),
+        "email": admin_user.email,
+    }
     
 @app.get("/protected/profile")
 def protected_profile(current_user=Depends(get_current_user)):
