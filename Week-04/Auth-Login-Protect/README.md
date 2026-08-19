@@ -2,7 +2,9 @@
 
 Secure authentication API built for the **FlyRank Backend AI Engineering Internship — Assignment BE-03**.
 
-This project demonstrates a complete authentication flow using **FastAPI** and **Supabase Auth**, including user signup, login, logout, JWT verification, reusable route protection, and Swagger UI Bearer authentication.
+This project demonstrates a complete authentication flow using **FastAPI** and **Supabase Auth**, including user signup, login, logout, JWT verification, reusable route protection, Swagger UI Bearer authentication, admin authorization, refresh-token handling, and basic login rate limiting.
+
+---
 
 ## Features
 
@@ -18,6 +20,11 @@ This project demonstrates a complete authentication flow using **FastAPI** and *
 * Environment-variable based configuration
 * Secrets excluded from Git
 * Additional protected dashboard route demonstrating dependency reuse
+* Admin-only authorization with a real `403 Forbidden` case
+* Refresh-token endpoint for obtaining fresh access tokens
+* Failed-login rate limiting with `429 Too Many Requests`
+
+---
 
 ## Tech Stack
 
@@ -29,6 +36,8 @@ This project demonstrates a complete authentication flow using **FastAPI** and *
 * python-dotenv
 * HTTP Bearer Authentication
 * Git / GitHub
+
+---
 
 ## Project Structure
 
@@ -44,6 +53,8 @@ Auth-Login-Protect/
 ```
 
 The real `.env` file is intentionally excluded from Git.
+
+---
 
 ## Authentication Flow
 
@@ -66,6 +77,8 @@ Protected route executes
 ```
 
 Passwords are never stored or hashed by this application. Account management, password hashing, and token issuance are handled by Supabase Auth.
+
+---
 
 ## Environment Setup
 
@@ -118,9 +131,14 @@ Create a `.env` file based on `.env.example`:
 SUPABASE_URL=your_project_url
 SUPABASE_KEY=your_anon_key
 PORT=8000
+ADMIN_EMAIL=admin@example.com
 ```
 
+`ADMIN_EMAIL` identifies the account allowed to access the admin-only endpoint. It is stored as configuration rather than hard-coded authorization data, so the allowed admin account can be changed without modifying application code.
+
 The real `.env` file is ignored by Git and must never be committed.
+
+---
 
 ## Run the API
 
@@ -142,29 +160,37 @@ Swagger UI:
 http://127.0.0.1:8000/docs
 ```
 
+---
+
 ## API Reference
 
-| Method | Endpoint               | Purpose                               | Authentication | Success |
-| ------ | ---------------------- | ------------------------------------- | -------------- | ------: |
-| `GET`  | `/`                    | API health/root response              | No             |   `200` |
-| `POST` | `/auth/signup`         | Register a new user                   | No             |   `201` |
-| `POST` | `/auth/login`          | Authenticate and receive tokens       | No             |   `200` |
-| `POST` | `/auth/logout`         | End authenticated session             | Bearer JWT     |   `204` |
-| `GET`  | `/public/info`         | Read public information               | No             |   `200` |
-| `GET`  | `/protected/profile`   | Read authenticated user profile       | Bearer JWT     |   `200` |
-| `GET`  | `/protected/dashboard` | Demonstrate reusable route protection | Bearer JWT     |   `200` |
+| Method | Endpoint               | Purpose                                      | Authentication                   | Success |
+| ------ | ---------------------- | -------------------------------------------- | -------------------------------- | ------: |
+| `GET`  | `/`                    | API health/root response                     | No                               |   `200` |
+| `POST` | `/auth/signup`         | Register a new user                          | No                               |   `201` |
+| `POST` | `/auth/login`          | Authenticate and receive tokens              | No                               |   `200` |
+| `POST` | `/auth/refresh`        | Exchange a refresh token for a fresh session | No                               |   `200` |
+| `POST` | `/auth/logout`         | End authenticated session                    | Bearer JWT                       |   `204` |
+| `GET`  | `/public/info`         | Read public information                      | No                               |   `200` |
+| `GET`  | `/protected/profile`   | Read authenticated user profile              | Bearer JWT                       |   `200` |
+| `GET`  | `/protected/dashboard` | Demonstrate reusable route protection        | Bearer JWT                       |   `200` |
+| `GET`  | `/protected/admin`     | Admin-only protected endpoint                | Bearer JWT + admin authorization |   `200` |
+
+---
 
 ## Status Codes
 
 The API uses the following status codes:
 
-| Status | Meaning      | Example                                       |
-| -----: | ------------ | --------------------------------------------- |
-|  `200` | OK           | Login or protected route succeeded            |
-|  `201` | Created      | User signup succeeded                         |
-|  `204` | No Content   | Logout succeeded                              |
-|  `400` | Bad Request  | Required signup/login input missing           |
-|  `401` | Unauthorized | Missing, malformed, invalid, or expired token |
+| Status | Meaning           | Example                                                     |
+| -----: | ----------------- | ----------------------------------------------------------- |
+|  `200` | OK                | Login or protected route succeeded                          |
+|  `201` | Created           | User signup succeeded                                       |
+|  `204` | No Content        | Logout succeeded                                            |
+|  `400` | Bad Request       | Required signup/login/refresh input missing                 |
+|  `401` | Unauthorized      | Missing, malformed, invalid, or expired authentication      |
+|  `403` | Forbidden         | Authenticated user lacks required admin permission          |
+|  `429` | Too Many Requests | Too many failed login attempts within the rate-limit window |
 
 Example missing credentials response:
 
@@ -198,6 +224,24 @@ Example invalid or tampered JWT response:
 }
 ```
 
+Example forbidden response:
+
+```json
+{
+  "error": "Admin access required"
+}
+```
+
+Example rate-limit response:
+
+```json
+{
+  "error": "Too many failed login attempts. Try again later."
+}
+```
+
+---
+
 ## Signup
 
 Request:
@@ -221,6 +265,8 @@ A successful request returns:
 ```
 
 Supabase Auth manages the account and password securely.
+
+---
 
 ## Login
 
@@ -249,6 +295,8 @@ A successful login returns:
 
 The access token is used to authenticate protected requests.
 
+---
+
 ## Protected Routes
 
 Protected routes require:
@@ -267,6 +315,8 @@ The reusable `get_current_user` FastAPI dependency:
 
 Both `/protected/profile` and `/protected/dashboard` use the same dependency, avoiding duplicated authentication logic.
 
+---
+
 ## JWT Verification
 
 Tokens are not trusted merely because they are present.
@@ -284,6 +334,107 @@ A tampered, expired, or otherwise invalid token returns:
 ```text
 401 Unauthorized
 ```
+
+---
+
+## Admin Authorization — 401 vs 403
+
+Authentication and authorization answer different questions:
+
+* `401 Unauthorized` means the API could not verify who the caller is. This is returned when the access token is missing, malformed, invalid, or expired.
+* `403 Forbidden` means the caller is successfully authenticated, but does not have permission to access the requested resource.
+
+The `/protected/admin` endpoint first authenticates the user through the normal JWT verification dependency. It then checks whether the authenticated user's email matches the configured `ADMIN_EMAIL`.
+
+Verified behavior:
+
+```text
+No JWT                  → 401 Unauthorized
+Valid non-admin JWT     → 403 Forbidden
+Valid admin JWT         → 200 OK
+```
+
+This keeps authentication and authorization separate instead of treating every access failure as `401`.
+
+---
+
+## Refresh Token Flow
+
+Access tokens are short-lived so that a stolen or exposed token has a limited usable lifetime.
+
+The login endpoint returns both an access token and a refresh token.
+
+The access token is used to call protected API endpoints. When it expires, the refresh token can be sent to:
+
+```text
+POST /auth/refresh
+```
+
+to obtain a fresh access token without requiring the user to enter their email and password again.
+
+Example request:
+
+```json
+{
+  "refresh_token": "<refresh-token>"
+}
+```
+
+Verified behavior:
+
+```text
+Missing refresh token   → 400 Bad Request
+Valid refresh token     → 200 OK
+Invalid refresh token   → 401 Unauthorized
+```
+
+A successful refresh returns a new access token and refresh token.
+
+---
+
+## Login Rate Limiting
+
+`POST /auth/login` includes basic protection against repeated password-guessing attempts.
+
+Failed login attempts are tracked using a combination of:
+
+```text
+client IP + normalized email address
+```
+
+The demonstration rate limit is:
+
+```text
+3 failed attempts within 60 seconds
+```
+
+The first three failed login attempts return:
+
+```text
+401 Unauthorized
+```
+
+Further attempts within the same rate-limit window return:
+
+```text
+429 Too Many Requests
+```
+
+with:
+
+```json
+{
+  "error": "Too many failed login attempts. Try again later."
+}
+```
+
+After the cooldown period expires, the user can attempt to log in again normally.
+
+Login is the correct place for this protection because brute-force and credential-stuffing attacks repeatedly target authentication endpoints.
+
+This assignment uses an in-memory rate limiter for simplicity. In a production system running multiple application instances, a shared store such as Redis would normally be used so rate-limit state is consistent across servers.
+
+---
 
 ## Swagger UI Bearer Authentication
 
@@ -311,33 +462,51 @@ To test authentication:
 
 The lock icons indicate endpoints protected by Bearer authentication.
 
+---
+
 ## Verified Test Cases
 
 The following behavior was tested successfully:
 
 ```text
-Signup with valid credentials            → 201 Created
-Signup with missing password             → 400 Bad Request
+Signup with valid credentials              → 201 Created
+Signup with missing password               → 400 Bad Request
 
-Login with valid credentials             → 200 OK
-Login with incorrect password            → 401 Unauthorized
-Login with missing password              → 400 Bad Request
+Login with valid credentials               → 200 OK
+Login with incorrect password              → 401 Unauthorized
+Login with missing password                → 400 Bad Request
 
-Public information endpoint              → 200 OK
+Public information endpoint                → 200 OK
 
-Protected profile without token          → 401 Unauthorized
-Protected profile with valid JWT         → 200 OK
-Protected profile with tampered JWT      → 401 Unauthorized
+Protected profile without token            → 401 Unauthorized
+Protected profile with valid JWT           → 200 OK
+Protected profile with tampered JWT        → 401 Unauthorized
 
-Protected dashboard with valid JWT       → 200 OK
-Protected dashboard with tampered JWT    → 401 Unauthorized
+Protected dashboard with valid JWT         → 200 OK
+Protected dashboard with tampered JWT      → 401 Unauthorized
 
-Logout without token                     → 401 Unauthorized
-Logout with valid JWT                    → 204 No Content
+Logout without token                       → 401 Unauthorized
+Logout with valid JWT                      → 204 No Content
 
-Swagger Bearer authorization             → Working
-Swagger protected profile request        → 200 OK
+Swagger Bearer authorization               → Working
+Swagger protected profile request          → 200 OK
+
+Admin route without JWT                    → 401 Unauthorized
+Admin route with authenticated non-admin   → 403 Forbidden
+Admin route with configured admin          → 200 OK
+
+Refresh request without token              → 400 Bad Request
+Refresh request with valid refresh token   → 200 OK
+Refresh request with invalid token         → 401 Unauthorized
+
+Failed login attempt #1                    → 401 Unauthorized
+Failed login attempt #2                    → 401 Unauthorized
+Failed login attempt #3                    → 401 Unauthorized
+Fourth login attempt inside rate window    → 429 Too Many Requests
+Valid login after cooldown                 → 200 OK
 ```
+
+---
 
 ## Security Decisions
 
@@ -371,6 +540,28 @@ Authentication logic is implemented once and reused by multiple protected routes
 
 This reduces duplication and lowers the risk of accidentally leaving a protected endpoint unsecured.
 
+### Authentication and authorization are separated
+
+JWT verification establishes the caller's identity. The admin authorization dependency performs a second permission check.
+
+An unauthenticated caller receives `401 Unauthorized`, while an authenticated user who does not have admin permission receives `403 Forbidden`.
+
+### Short-lived access tokens can be refreshed
+
+Access tokens are intentionally short-lived to reduce the impact of token exposure.
+
+The refresh-token flow allows a user to obtain a fresh access token without repeatedly submitting their password.
+
+### Login brute-force protection
+
+Repeated failed login attempts are temporarily rate-limited.
+
+After three failed attempts within the configured 60-second window, additional attempts return `429 Too Many Requests`.
+
+This reduces the effectiveness of automated password guessing and credential-stuffing attacks.
+
+---
+
 ## Git Security Verification
 
 Before publication, the repository was checked to confirm that `.env`:
@@ -381,9 +572,11 @@ Before publication, the repository was checked to confirm that `.env`:
 
 No Supabase secrets are committed to the repository.
 
-## Assignment Stages
+---
 
-The project was developed incrementally with one Git commit per stage:
+## Development Stages
+
+The required assignment was developed incrementally with one Git commit per stage:
 
 ```text
 Stage 0: setup server and supabase client
@@ -395,11 +588,23 @@ Stage 5: Swagger UI documentation with bearer auth
 Stage 6: publish to GitHub and write README
 ```
 
-This provides a clear history of how the authentication system evolved from initial setup to a fully protected API.
+Additional stretch work was completed in separate commits:
+
+```text
+Extras: add admin authorization with 403
+Extras: add refresh token flow
+Extras: add login rate limiting
+```
+
+The optional **Stage 7 AI Rematch** was not included in this implementation.
+
+---
 
 ## Repository
 
 [FlyRank Backend AI Engineering](https://github.com/Abdullah-Javed-01/FlyRank-Backend-AI-Engineering)
+
+---
 
 ## Assignment
 
