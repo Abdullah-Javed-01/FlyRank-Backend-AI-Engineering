@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header
+from fastapi import Depends, FastAPI, Header, Request, Response
 from supabase import Client, create_client
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
@@ -17,12 +17,23 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+class AuthError(Exception):
+    def __init__(self, message: str):
+        self.message = message
+
 app = FastAPI(title="FlyRank Auth API")
 
 class AuthCredentials(BaseModel):
     email: str | None = None
     password: str | None = None
 
+@app.exception_handler(AuthError)
+async def auth_error_handler(request: Request, exc: AuthError):
+    return JSONResponse(
+        status_code=401,
+        content={"error": exc.message},
+    )
+    
 @app.get("/")
 def root():
     return {
@@ -30,6 +41,54 @@ def root():
         "supabase": "client initialized"
     }
     
+def get_current_user(authorization: str | None = Header(default=None)):
+    if not authorization:
+        raise AuthError("Access token required")
+
+    parts = authorization.split(" ", 1)
+
+    if (
+        len(parts) != 2
+        or parts[0].lower() != "bearer"
+        or not parts[1].strip()
+    ):
+        raise AuthError("Access token required")
+
+    token = parts[1].strip()
+
+    try:
+        response = supabase.auth.get_user(token)
+
+        if not response.user:
+            raise AuthError("Invalid or expired token")
+
+        return response.user
+
+    except AuthError:
+        raise
+
+    except Exception:
+        raise AuthError("Invalid or expired token")
+    
+@app.get("/protected/profile")
+def protected_profile(current_user=Depends(get_current_user)):
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "created_at": (
+            current_user.created_at.isoformat()
+            if hasattr(current_user.created_at, "isoformat")
+            else str(current_user.created_at)
+        ),
+    }
+    
+@app.get("/protected/dashboard")
+def protected_dashboard(current_user=Depends(get_current_user)):
+    return {
+        "message": "Welcome to your protected dashboard",
+        "user_id": str(current_user.id),
+    }
+
 @app.post("/auth/signup")
 def signup(credentials: AuthCredentials):
     if not credentials.email or not credentials.password:
@@ -100,51 +159,14 @@ def public_info():
         "message": "Welcome stranger! This info is public."
     }
     
-@app.get("/protected/profile")
-def protected_profile(authorization: str | None = Header(default=None)):
-    if not authorization:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Access token required"},
-        )
-
-    parts = authorization.split(" ", 1)
-
-    if (
-        len(parts) != 2
-        or parts[0].lower() != "bearer"
-        or not parts[1].strip()
-    ):
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Access token required"},
-        )
-
-    token = parts[1].strip()
-
+@app.post("/auth/logout", status_code=204)
+def logout(current_user=Depends(get_current_user)):
     try:
-        response = supabase.auth.get_user(token)
-
-        if not response.user:
-            return JSONResponse(
-                status_code=401,
-                content={"error": "Invalid or expired token"},
-            )
-
-        user = response.user
-
-        return {
-            "id": str(user.id),
-            "email": user.email,
-            "created_at": (
-                user.created_at.isoformat()
-                if hasattr(user.created_at, "isoformat")
-                else str(user.created_at)
-            ),
-        }
+        supabase.auth.sign_out()
+        return Response(status_code=204)
 
     except Exception:
         return JSONResponse(
-            status_code=401,
-            content={"error": "Invalid or expired token"},
+            status_code=400,
+            content={"error": "Logout failed"},
         )
