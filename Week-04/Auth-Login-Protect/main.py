@@ -1,4 +1,5 @@
 import os
+import time
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Request, Response
@@ -9,6 +10,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 load_dotenv()
+LOGIN_FAILURE_LIMIT = 3
+LOGIN_WINDOW_SECONDS = 60
+
+login_failures = {}
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -37,6 +42,38 @@ class RefreshTokenRequest(BaseModel):
 class AuthorizationError(Exception):
     def __init__(self, message: str):
         self.message = message
+        
+def get_login_key(request: Request, email: str) -> tuple[str, str]:
+    client_ip = request.client.host if request.client else "unknown"
+    return client_ip, email.strip().lower()
+
+
+def is_login_rate_limited(key: tuple[str, str]) -> bool:
+    record = login_failures.get(key)
+
+    if not record:
+        return False
+
+    elapsed = time.time() - record["first_failed_at"]
+
+    if elapsed >= LOGIN_WINDOW_SECONDS:
+        login_failures.pop(key, None)
+        return False
+
+    return record["count"] >= LOGIN_FAILURE_LIMIT
+
+def record_login_failure(key: tuple[str, str]) -> None:
+    now = time.time()
+    record = login_failures.get(key)
+
+    if not record or now - record["first_failed_at"] >= LOGIN_WINDOW_SECONDS:
+        login_failures[key] = {
+            "count": 1,
+            "first_failed_at": now,
+        }
+        return
+
+    record["count"] += 1
         
 @app.exception_handler(AuthorizationError)
 async def authorization_error_handler(
@@ -180,11 +217,21 @@ def signup(credentials: AuthCredentials):
         )
         
 @app.post("/auth/login")
-def login(credentials: AuthCredentials):
+def login(request: Request, credentials: AuthCredentials):
     if not credentials.email or not credentials.password:
         return JSONResponse(
             status_code=400,
             content={"error": "Email and password are required"}
+        )
+        
+    login_key = get_login_key(request, credentials.email)
+
+    if is_login_rate_limited(login_key):
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Too many failed login attempts. Try again later."
+            },
         )
 
     try:
@@ -207,6 +254,7 @@ def login(credentials: AuthCredentials):
         }
 
     except Exception:
+        record_login_failure(login_key)
         return JSONResponse(
             status_code=401,
             content={"error": "Invalid login credentials"}
