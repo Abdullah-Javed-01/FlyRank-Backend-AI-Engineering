@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from supabase import Client, create_client
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
@@ -93,3 +93,36 @@ def login(credentials: AuthCredentials):
             status_code=401,
             content={"error": "Invalid login credentials"}
         )
+        
+@app.get("/public/info")
+def public_info():
+    return {
+        "message": "Welcome stranger! This info is public."
+    }
+    
+@app.get("/protected/profile")
+def protected_profile(authorization: str | None = Header(default=None)):
+    if not authorization:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Access token required"},
+        )
+
+    parts = authorization.split(" ", 1)
+
+    if (
+        len(parts) != 2
+        or parts[0].lower() != "bearer"
+        or not parts[1].strip()
+    ):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Access token required"},
+        )
+
+    token = parts[1].strip()
+
+    return {
+        "message": "Token received",
+        "protected": True,
+    }
