@@ -1,10 +1,11 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from supabase import Client, create_client
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 load_dotenv()
@@ -22,6 +23,8 @@ class AuthError(Exception):
         self.message = message
 
 app = FastAPI(title="FlyRank Auth API")
+
+security = HTTPBearer(auto_error=False)
 
 class AuthCredentials(BaseModel):
     email: str | None = None
@@ -41,20 +44,16 @@ def root():
         "supabase": "client initialized"
     }
     
-def get_current_user(authorization: str | None = Header(default=None)):
-    if not authorization:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
+    if credentials is None:
         raise AuthError("Access token required")
 
-    parts = authorization.split(" ", 1)
-
-    if (
-        len(parts) != 2
-        or parts[0].lower() != "bearer"
-        or not parts[1].strip()
-    ):
+    if credentials.scheme.lower() != "bearer" or not credentials.credentials:
         raise AuthError("Access token required")
 
-    token = parts[1].strip()
+    token = credentials.credentials
 
     try:
         response = supabase.auth.get_user(token)
