@@ -31,6 +31,9 @@ class AuthCredentials(BaseModel):
     email: str | None = None
     password: str | None = None
     
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str | None = None
+    
 class AuthorizationError(Exception):
     def __init__(self, message: str):
         self.message = message
@@ -51,6 +54,34 @@ async def auth_error_handler(request: Request, exc: AuthError):
         status_code=401,
         content={"error": exc.message},
     )
+
+@app.post("/auth/refresh")
+def refresh_token(request: RefreshTokenRequest):
+    if not request.refresh_token:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Refresh token is required"},
+        )
+
+    try:
+        response = supabase.auth.refresh_session(request.refresh_token)
+
+        if not response.session:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Invalid refresh token"},
+            )
+
+        return {
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+        }
+
+    except Exception:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Invalid refresh token"},
+        )
     
 @app.get("/")
 def root():
