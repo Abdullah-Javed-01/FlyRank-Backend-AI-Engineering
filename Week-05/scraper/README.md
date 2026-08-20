@@ -321,7 +321,7 @@ Implemented cases:
 Verified result:
 
 ```text
-5 passed in 0.91s
+5 passed in 0.33s
 ```
 
 ---
@@ -332,8 +332,8 @@ The following is a real cached rerun from the completed scraper:
 
 ```json
 {
-  "started_at": "2026-08-20T14:12:35.869649Z",
-  "duration_seconds": 4.047,
+  "started_at": "2026-08-20T15:27:24.070059Z",
+  "duration_seconds": 2.397,
   "catalogue_pages": 3,
   "discovered_urls": 60,
   "unique_urls": 60,
