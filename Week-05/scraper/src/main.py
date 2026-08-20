@@ -5,8 +5,8 @@ from bs4 import BeautifulSoup
 import requests
 import json
 from datetime import datetime, timezone
+from pydantic import BaseModel, ValidationError, field_validator
 
-REQUEST_DELAY_SECONDS = 0.5
 CATALOGUE_URL = "https://books.toscrape.com/catalogue/page-1.html"
 
 CACHE_DIR = Path("cache")
@@ -18,6 +18,26 @@ USER_AGENT = (
 )
 
 TIMEOUT_SECONDS = 10
+REQUEST_DELAY_SECONDS = 0.5
+OUTPUT_DIR = Path("output")
+
+class BookRecord(BaseModel):
+    title: str
+    product_url: str
+    price_text: str
+    price_gbp: float
+    availability_text: str
+    rating_text: str
+    description: str | None
+    source_page: str
+    fetched_at: str
+
+    @field_validator("product_url", "source_page")
+    @classmethod
+    def require_https(cls, value: str) -> str:
+        if not value.startswith("https://"):
+            raise ValueError("URL must start with https://")
+        return value
 
 def fetch_or_cache(url: str, cache_path: Path) -> str:
     if cache_path.exists():
@@ -152,6 +172,26 @@ def extract_book_record(
         "source_page": source_page,
         "fetched_at": fetched_at,
     }
+    
+def normalize_price(price_text: str) -> float:
+    cleaned = price_text.strip()
+
+    if not cleaned.startswith("£"):
+        raise ValueError(f"Unexpected price format: {price_text}")
+
+    return float(cleaned.removeprefix("£"))
+
+def write_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(
+        json.dumps(
+            data,
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
 def main():
     current_url = CATALOGUE_URL
@@ -199,9 +239,56 @@ def main():
         )
 
         raw_records.append(record)
+        
+    valid_records_by_url: dict[str, dict] = {}
+    errors = []
 
-    print(json.dumps(raw_records[0], indent=2, ensure_ascii=False))
+    for raw_record in raw_records:
+        try:
+            candidate = {
+                **raw_record,
+                "price_gbp": normalize_price(
+                    raw_record["price_text"]
+                ),
+            }
 
+            validated = BookRecord.model_validate(candidate)
+            clean_record = validated.model_dump()
+
+            valid_records_by_url[
+                validated.product_url
+            ] = clean_record
+
+        except (ValidationError, ValueError) as exc:
+            errors.append(
+                {
+                    "product_url": raw_record.get("product_url"),
+                    "reason": str(exc),
+                }
+            )
+
+    valid_records = list(valid_records_by_url.values())
+
+    write_json(
+        OUTPUT_DIR / "books.json",
+        valid_records,
+    )
+
+    write_json(
+        OUTPUT_DIR / "errors.json",
+        errors,
+    )
+
+    print(
+        json.dumps(
+            valid_records[0],
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+
+    print(f"valid_records={len(valid_records)}")
+    print(f"invalid_records={len(errors)}")
     print(f"detail_pages={len(raw_records)}")
     print(f"catalogue_pages={catalogue_pages}")
     print(f"discovered={discovered}")
