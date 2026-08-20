@@ -148,6 +148,9 @@ def extract_book_urls(html: str, page_url: str) -> list[str]:
 
     return book_urls
 
+def deduplicate_urls(urls: list[str]) -> list[str]:
+    return list(dict.fromkeys(urls))
+
 def extract_next_page_url(html: str, page_url: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
 
@@ -271,7 +274,9 @@ def main():
 
         html = fetch_or_cache(current_url, cache_path, stats)
 
-        page_book_urls = extract_book_urls(html, current_url)
+        page_book_urls = deduplicate_urls(
+            extract_book_urls(html, current_url)
+        )
 
         discovered += len(page_book_urls)
 

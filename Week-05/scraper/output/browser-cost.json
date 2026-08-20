@@ -1,0 +1,17 @@
+{
+  "target": "https://quotes.toscrape.com/js/",
+  "plain_http": {
+    "method": "plain_http",
+    "elapsed_seconds": 1.284,
+    "memory_mb": 43.89,
+    "quotes_found": 0,
+    "status_code": 200
+  },
+  "playwright": {
+    "method": "playwright",
+    "elapsed_seconds": 7.183,
+    "memory_mb": 384.64,
+    "quotes_found": 10,
+    "status_code": 200
+  }
+}
